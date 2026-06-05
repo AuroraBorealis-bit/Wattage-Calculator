@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>单光纤功率传输计算器</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: "Microsoft YaHei", Arial, sans-serif;
+        }
+
+        body {
+            background-color: #f5f7fa;
+            padding: 20px;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .container {
+            background: white;
+            padding: 30px 25px;
+            border-radius: 12px;
+            box-shadow: 0 2px 15px rgba(0,0,0,0.1);
+        }
+
+        h2 {
+            text-align: center;
+            color: #2c3e50;
+            margin-bottom: 25px;
+        }
+
+        .input-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #34495e;
+            font-weight: 500;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 16px;
+            outline: none;
+            transition: border 0.3s;
+        }
+
+        input:focus {
+            border-color: #3498db;
+        }
+
+        button {
+            width: 100%;
+            padding: 14px;
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.3s;
+            margin-bottom: 25px;
+        }
+
+        button:hover {
+            background-color: #2980b9;
+        }
+
+        .result-box {
+            padding: 20px;
+            background-color: #e8f4fd;
+            border-radius: 8px;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        .result-title {
+            color: #2c3e50;
+            font-size: 16px;
+            margin-bottom: 10px;
+        }
+
+        .result-value {
+            color: #e74c3c;
+            font-size: 24px;
+            font-weight: bold;
+        }
+
+        .battery-box {
+            padding: 15px;
+            background-color: #f0f8ff;
+            border-radius: 8px;
+            margin-top: 10px;
+            font-size: 15px;
+            line-height: 1.7;
+        }
+
+        .battery-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 0;
+        }
+
+        .unit {
+            font-size: 16px;
+            margin-left: 5px;
+        }
+
+        .params {
+            margin-top: 20px;
+            font-size: 12px;
+            color: #7f8c8d;
+            text-align: center;
+            line-height: 1.5;
+        }
+
+        .params-title {
+            color: #2c3e50;
+            font-weight: bold;
+            margin-top: 25px;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>单光纤功率传输计算器</h2>
+        
+        <div class="input-group">
+            <label>发射端入射光功率 (W)</label>
+            <input type="number" id="inputOptPower" placeholder="输入光源输出光功率" min="0" step="0.0001">
+        </div>
+        <div class="input-group">
+            <label>传输距离 (KM)</label>
+            <input type="number" id="distance" placeholder="请输入传输距离" min="0" step="0.001">
+        </div>
+
+        <button onclick="calculatePower()">开始计算</button>
+
+        <div class="result-box" id="resultWrap">
+            <div class="result-title">接收端输出电功率</div>
+            <div class="result-value"><span id="outputResult">0.0000</span> W</div>
+        </div>
+
+        <!-- 5个可调参数全部挪到输出功率下方 -->
+        <div class="params-title">可调节损耗参数（默认值已填好）</div>
+        <div class="input-group">
+            <label>光纤损耗系数 (dB/km)</label>
+            <input type="number" id="fiberLoss" value="0.168" min="0" step="0.001">
+        </div>
+        <div class="input-group">
+            <label>单次耦合损耗 (dB)</label>
+            <input type="number" id="coupleLoss" value="0.5" min="0" step="0.01">
+        </div>
+        <div class="input-group">
+            <label>光电转换效率 (%)</label>
+            <input type="number" id="PDEfficiency" value="35" min="0" step="0.1">
+        </div>
+        <div class="input-group">
+            <label>分光及准直损耗比例 (%)</label>
+            <input type="number" id="spectrometerLoss" value="10" min="0" step="0.1">
+        </div>
+        <div class="input-group">
+            <label>电池能量密度 (Wh/kg)</label>
+            <input type="number" id="energyDensity" value="255" min="0" step="1">
+        </div>
+
+        <div class="battery-box" id="batteryResult" style="display:none;">
+            <div class="battery-item">
+                <span>📊 24h接收输出等效电池重量：</span>
+                <strong id="outputBatteryWeight">0.000 kg</strong>
+            </div>
+        </div>
+
+        <div class="params">
+            耦合损耗默认按 2 次计算 | 分光损耗%自动折算传输效率<br>
+            计算逻辑：输入光功率→光纤+耦合损耗→接收光功率→光电转换→输出电功率→24h等效电池重量
+        </div>
+    </div>
+
+    <script>
+        function calculatePower() {
+            const inputOptPower = parseFloat(document.getElementById('inputOptPower').value) || 0;
+            const distance = parseFloat(document.getElementById('distance').value) || 0;
+            const fiberLoss = parseFloat(document.getElementById('fiberLoss').value) || 0.168;
+            const coupleLoss = parseFloat(document.getElementById('coupleLoss').value) || 0.5;
+            const PDEfficiencyPercent = parseFloat(document.getElementById('PDEfficiency').value) || 35;
+            const spectrometerLossPercent = parseFloat(document.getElementById('spectrometerLoss').value) || 10;
+            const energyDensity = parseFloat(document.getElementById('energyDensity').value) || 255;
+
+            const PDEfficiency = PDEfficiencyPercent / 100;
+            const spectrometerEfficiency = 1 - spectrometerLossPercent / 100;
+            const hours = 24;
+
+            const totalLossDb = distance * fiberLoss + 2 * coupleLoss;
+            const lossMultiplier = Math.pow(10, -totalLossDb / 10);
+
+            // 输入单位已经是W，不用再除以1000
+            const receiveOptPower = inputOptPower * lossMultiplier;
+            const outputPower = receiveOptPower * PDEfficiency * spectrometerEfficiency;
+
+            // 电能：W × h = Wh
+            const outputEnergyWh = outputPower * hours;
+            const outputBatteryWeight = outputEnergyWh / energyDensity;
+
+            document.getElementById('outputResult').innerText = outputPower.toFixed(4);
+            document.getElementById('outputBatteryWeight').innerText = outputBatteryWeight.toFixed(3) + " kg";
+
+            document.getElementById('resultWrap').style.display = "block";
+            document.getElementById('batteryResult').style.display = "block";
+        }
+    </script>
+</body>
+</html>
